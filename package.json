@@ -1,0 +1,41 @@
+{
+  "name": "bitcoin-analyst",
+  "version": "0.8.0",
+  "description": "Educational Bitcoin market analysis: indicators, structure, cost model, regime detection and walk-forward statistical validation",
+  "type": "module",
+  "bin": {
+    "btc": "scripts/analizar.mjs"
+  },
+  "scripts": {
+    "btc": "node scripts/analizar.mjs --refrescar",
+    "btc:rapido": "node scripts/analizar.mjs",
+    "btc:json": "node scripts/analizar.mjs --refrescar --json",
+    "datos": "node scripts/fetch-ohlcv.mjs",
+    "estructura": "node scripts/ver-estructura.mjs",
+    "tradingview": "node scripts/comparar-tradingview.mjs",
+    "test": "node scripts/test-indicadores.mjs && node scripts/test-estructura.mjs && node scripts/test-escenarios.mjs && node scripts/test-costes.mjs && node scripts/test-regimen.mjs",
+    "datos:historico": "node scripts/fetch-historico.mjs",
+    "validar": "node scripts/validar-niveles.mjs --repeticiones 10000",
+    "hoy": "node scripts/operacion-del-dia.mjs --refrescar",
+    "backtest": "node scripts/backtest.mjs",
+    "derivados": "node scripts/recolectar-derivados.mjs",
+    "datos:funding": "node scripts/fetch-funding.mjs"
+  },
+  "author": "Daniel Marti Guerrero",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielmartinezguerrero/bitcoin-analyst.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "bitcoin",
+    "technical-analysis",
+    "backtesting",
+    "statistical-validation",
+    "binance",
+    "educational"
+  ]
+}

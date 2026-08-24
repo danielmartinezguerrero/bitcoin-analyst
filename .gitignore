@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------- dependencies
+node_modules/
+
+# ------------------------------------------------------------- build artifacts
+# Regenerated with `npm run build` inside BitcoinAnalyzer/.
+# GitHub rejects any file over 100 MB and the unpacked Electron binary is 180 MB.
+dist/
+build/
+out/
+*.exe
+*.dmg
+*.AppImage
+*.blockmap
+
+# ------------------------------------------------------- downloaded / generated
+# Everything here is rebuilt by the project's own scripts:
+#   npm run datos            recent candles
+#   npm run datos:historico  9 years of history (3.4 MB)
+#   npm run datos:funding    funding history since 2019
+#   npm run validar          Osler test on the levels
+#   npm run backtest         full backtest
+data/
+*.log
+
+# ------------------------------------------------------------------ environment
+# No API keys are needed anywhere in this project — every data source is a
+# public keyless endpoint. These patterns exist so that stays true.
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+
+# ------------------------------------------------------------------- editors/OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------------ misc
+*.tmp
+.cache/
+coverage/

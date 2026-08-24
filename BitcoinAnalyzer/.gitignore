@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output. Regenerate with `npm run build`.
+# The unpacked Electron binary is ~180 MB; GitHub's hard limit is 100 MB.
+dist/
+build/
+*.exe
+*.blockmap
+
+# Market snapshots downloaded at runtime.
+# Running from source they land here; inside the packaged app they go to the
+# per-user data directory instead (see core/data.mjs).
+data/
+
+# Environment / editors / OS
+.env
+.env.*
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

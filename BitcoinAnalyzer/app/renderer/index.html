@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Bitcoin Analyzer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">₿</div>
+        <div>
+          <h1>Bitcoin Analyzer</h1>
+          <p class="sub" data-i18n="tagline">Educational market analysis</p>
+        </div>
+      </div>
+
+      <div class="price-card">
+        <span class="label">BTC/USDT</span>
+        <strong id="price">—</strong>
+        <span class="muted" id="price-time" data-i18n="notLoaded">not loaded yet</span>
+      </div>
+
+      <div class="group">
+        <label class="group-title" data-i18n="actions">Actions</label>
+        <button id="btn-analyze" class="btn primary">
+          <span class="ico">📊</span> <span data-i18n="analyze">Analyze today</span>
+        </button>
+        <button id="btn-refresh" class="btn">
+          <span class="ico">🔄</span> <span data-i18n="refresh">Refresh market data</span>
+        </button>
+        <button id="btn-whales" class="btn">
+          <span class="ico">🐋</span> <span data-i18n="whales">Whale positioning</span>
+        </button>
+        <button id="btn-validation" class="btn">
+          <span class="ico">🔬</span> <span data-i18n="validation">How reliable is this?</span>
+        </button>
+      </div>
+
+      <!--
+        Language switch. The heading stays "Idioma" in Spanish on purpose:
+        somebody who cannot read the English UI still recognises that word,
+        which is the whole point of a language selector.
+      -->
+      <div class="group">
+        <label class="group-title">🌐 Idioma</label>
+        <div class="lang-switch" id="lang-switch">
+          <button class="lang-btn active" data-lang="en">
+            <span class="flag">🇬🇧</span> English
+          </button>
+          <button class="lang-btn" data-lang="es">
+            <span class="flag">🇪🇸</span> Español
+          </button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="group-title" data-i18n="settings">Settings</label>
+
+        <label class="field">
+          <span data-i18n="capital">Capital (USDT)</span>
+          <input id="capital" type="number" value="50" min="0" step="10">
+        </label>
+
+        <label class="field">
+          <span data-i18n="feeProfile">Fee profile</span>
+          <select id="profile">
+            <option value="futures" selected>USD-M Futures (0.02/0.05%)</option>
+            <option value="futures-bnb">Futures + BNB (-10%)</option>
+            <option value="spot">Spot (0.1%)</option>
+            <option value="spot-bnb">Spot + BNB (-25%)</option>
+          </select>
+        </label>
+
+        <label class="check">
+          <input id="maker" type="checkbox" checked>
+          <span data-i18n="makerEntry">Enter with limit order (maker)</span>
+        </label>
+      </div>
+
+      <div class="disclaimer" data-i18n="disclaimer">
+        Educational tool. Not financial advice. It does not connect to any
+        account and never places orders.
+      </div>
+    </aside>
+
+    <main class="chat-area">
+      <div id="chat" class="chat"></div>
+      <div id="status" class="status hidden"><span class="spinner"></span><span id="status-text"></span></div>
+      <div class="chat-footer">
+        <button id="btn-clear" class="btn-clear" title="">
+          <span class="ico">🗑️</span> <span data-i18n="clearChat">Clear chat</span>
+        </button>
+      </div>
+    </main>
+
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
