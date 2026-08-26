@@ -2,8 +2,10 @@
 /**
  * CLI del analizador. Este es el programa que se usa desde el terminal.
  *
- *   node scripts/analizar.mjs              analiza con los datos que haya en disco
- *   node scripts/analizar.mjs --refrescar  descarga datos nuevos antes de analizar
+ *   node scripts/analizar.mjs              analiza, descargando velas si las que
+ *                                          hay en disco han caducado (15 min)
+ *   node scripts/analizar.mjs --refrescar  fuerza la descarga aunque esten frescas
+ *   node scripts/analizar.mjs --sin-red    no toca la red: usa el disco tal cual
  *   node scripts/analizar.mjs --json       vuelca el dossier en JSON (para la Skill)
  *
  * Produce un DOSSIER: hechos tecnicos medidos, con el desglose de como se
@@ -14,22 +16,44 @@ import { analizarTemporalidad, sintetizar, mapaDeNiveles } from '../lib/analisis
 import { construirEscenarios } from '../lib/escenarios.mjs';
 import { recolectar } from './fetch-ohlcv.mjs';
 import { RUTA_OHLCV, RUTA_DOSSIER, DIR_HISTORICO, asegurarDirDatos, asegurarDirHistorico, nombreHistorico } from '../lib/rutas.mjs';
+import { estaObsoleto, traerPrecioEnVivo, proximoCierreDiario, MINUTOS_CACHE_VALIDA } from '../lib/frescura.mjs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const quiereJson = args.includes('--json');
 const quiereRefrescar = args.includes('--refrescar');
+const sinRed = args.includes('--sin-red');
 const RUTA = RUTA_OHLCV;
 
 // ---------------------------------------------------------------- datos
 
-if (quiereRefrescar || !existsSync(RUTA)) {
+/**
+ * LA CACHE CADUCA.
+ *
+ * La condicion era "--refrescar || !existsSync(RUTA)": sin la bandera, un
+ * ohlcv.json de hace una semana se reutilizaba entero y el dossier salia
+ * identico sin hacer una sola peticion. El aviso de "mas de una hora" se
+ * imprimia DESPUES de calcularlo todo, que es avisar cuando ya no cambia nada.
+ *
+ * --sin-red conserva el comportamiento antiguo a proposito: trabajar sin
+ * conexion, o analizar un fichero concreto sin que se lo pisen por debajo.
+ * Es lo que usa "npm run btc:rapido".
+ */
+let datos = existsSync(RUTA) ? JSON.parse(readFileSync(RUTA, 'utf8')) : null;
+
+if (!sinRed && (quiereRefrescar || !datos || estaObsoleto(datos))) {
   if (!quiereJson) console.log('Descargando datos actualizados...\n');
-  await recolectar({ silencioso: quiereJson });
+  datos = await recolectar({ silencioso: quiereJson });
 }
 
-const datos = JSON.parse(readFileSync(RUTA, 'utf8'));
+if (!datos) {
+  console.error('No hay velas en disco y --sin-red impide descargarlas.');
+  process.exit(1);
+}
+
 const antiguedadMin = (Date.now() - new Date(datos.generadoEn).getTime()) / 60000;
+/** Decorativo: se imprime, nunca entra en el analisis. Ver lib/frescura.mjs. */
+const precioEnVivo = sinRed ? null : await traerPrecioEnVivo();
 
 const tfEscenario = (() => { const i = args.indexOf('--escenario'); return i >= 0 && args[i+1] ? args[i+1] : '1d'; })();
 
@@ -89,8 +113,25 @@ console.log('  ' + new Date(dossier.generadoEn).toISOString().slice(0, 16).repla
   + '   datos de hace ' + dossier.antiguedadDatosMin.toFixed(0) + ' min');
 linea('=');
 
-if (antiguedadMin > 60) {
-  console.log('\n  AVISO: los datos tienen mas de una hora. Usa --refrescar.');
+/**
+ * LOS DOS PRECIOS, JUNTOS Y DISTINGUIDOS.
+ *
+ * El dossier razona sobre velas CERRADAS, asi que su precio es el ultimo
+ * cierre y no el de mercado. Imprimir solo ese numero hacia parecer que el
+ * programa estaba colgado cuando estaba haciendo justo lo correcto.
+ */
+if (precioEnVivo !== null) {
+  console.log('');
+  console.log('  referencia ' + usd(dossier.precioActual) + ' (ultimo cierre)'
+    + '   |   mercado ahora ' + usd(precioEnVivo));
+  console.log('  La lectura no puede cambiar hasta el cierre diario de las '
+    + proximoCierreDiario().slice(11, 16) + ' UTC.');
+}
+
+if (sinRed && antiguedadMin > MINUTOS_CACHE_VALIDA) {
+  console.log('');
+  console.log('  AVISO: --sin-red, y las velas tienen ' + antiguedadMin.toFixed(0)
+    + ' min. Quita --sin-red para descargar velas nuevas.');
 }
 
 console.log('\n  archivado en historico/' + nombreHistorico(dossier.generadoEn));

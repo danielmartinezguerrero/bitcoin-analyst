@@ -11,7 +11,8 @@ import { dailySelection, CRITERIA } from './selection.mjs';
 import { classifyRegime } from './regime.mjs';
 import { atr } from './indicators.mjs';
 import { FEE_PROFILES, tradeCosts } from './costs.mjs';
-import { fetchMarketData, loadMarketData, fetchPositioning, fetchFunding } from './data.mjs';
+import { fetchMarketData, loadMarketData, fetchPositioning, fetchFunding,
+  fetchSpotPrice, isMarketDataStale, marketDataAgeMinutes, CACHE_TTL_MINUTES } from './data.mjs';
 
 export const TIMEFRAMES = ['1d', '4h', '1h', '15m'];
 
@@ -95,6 +96,19 @@ export async function runAnalysis({ refresh = false, feeProfile = 'futures',
   entryAsMaker = true, capital = 0, onProgress = () => {} } = {}) {
 
   let market = refresh ? null : loadMarketData();
+  /**
+   * THE CACHE HAS TO EXPIRE.
+   *
+   * This used to be `if (!market)` alone, so the snapshot on disk was reused
+   * for as long as it existed. `dataAge` was computed a few lines below and
+   * never acted on, which meant "Analyze today" downloaded no candles at all
+   * and reprinted the same scenario indefinitely. The app looked frozen
+   * because it was.
+   *
+   * `refresh` still forces a download; this only stops a stale file from being
+   * served in silence.
+   */
+  if (market && isMarketDataStale(market)) market = null;
   if (!market) {
     onProgress('Downloading market data from Binance...');
     market = await fetchMarketData(onProgress);
@@ -125,7 +139,8 @@ export async function runAnalysis({ refresh = false, feeProfile = 'futures',
   const proposal = regime.isTrending ? (aligned[0] ?? null) : null;
 
   onProgress('Reading derivatives positioning...');
-  const [positioning, funding] = await Promise.all([fetchPositioning(), fetchFunding()]);
+  const [positioning, funding, livePrice] = await Promise.all([
+    fetchPositioning(), fetchFunding(), fetchSpotPrice()]);
 
   /**
    * HONEST LABELS. The scenario used to say the stop rested on "structure" and
@@ -145,7 +160,18 @@ export async function runAnalysis({ refresh = false, feeProfile = 'futures',
   return {
     generatedAt: new Date().toISOString(),
     price: analysis[0].price,
-    dataAge: (Date.now() - new Date(market.generatedAt).getTime()) / 60000,
+    /**
+     * The live quote travels BESIDE the reference price, not instead of it.
+     * They answer different questions — what BTC is worth right now, and what
+     * close this reading reasoned from — and collapsing them into one number
+     * is how the reference price came to look like a stuck ticker.
+     */
+    livePrice,
+    referenceCandleDate: daily[daily.length - 1].date,
+    /** UTC days align with epoch day boundaries, so this is just the next one. */
+    nextDailyCloseAt: new Date(Math.ceil(Date.now() / 86400000) * 86400000).toISOString(),
+    dataAge: marketDataAgeMinutes(market),
+    cacheTtlMinutes: CACHE_TTL_MINUTES,
     regime, performance, synthesis, analysis, selection, proposal,
     positioning, funding,
     sizing: capital > 0 && proposal ? computeSizing(proposal, capital, feeProfile, entryAsMaker) : null,

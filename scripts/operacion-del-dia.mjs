@@ -6,6 +6,7 @@
  *   npm run hoy
  *   node scripts/operacion-del-dia.mjs --perfil spot --taker
  *   node scripts/operacion-del-dia.mjs --detalle     (descartes y criterios)
+ *   node scripts/operacion-del-dia.mjs --sin-red     (no toca la red)
  *
  * No ejecuta ordenes ni se conecta a ninguna cuenta.
  */
@@ -18,6 +19,7 @@ import { atr } from '../lib/indicadores.mjs';
 import { PERFILES, costesOperacion } from '../lib/costes.mjs';
 import { recolectar } from './fetch-ohlcv.mjs';
 import { RUTA_OHLCV, DIR_DATOS, DIR_HISTORICO, asegurarDirHistorico, nombreHistorico } from '../lib/rutas.mjs';
+import { estaObsoleto, antiguedadMinutos, traerPrecioEnVivo, proximoCierreDiario } from '../lib/frescura.mjs';
 
 const args = process.argv.slice(2);
 const leer = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -32,9 +34,28 @@ if (!PERFILES[perfil]) {
   console.error('Perfil desconocido. Disponibles: ' + Object.keys(PERFILES).join(', '));
   process.exit(1);
 }
-if (args.includes('--refrescar') || !existsSync(RUTA_OHLCV)) await recolectar({ silencioso: true });
+/**
+ * LA CACHE CADUCA. Ver lib/frescura.mjs.
+ *
+ * Sin esto, --refrescar era la unica forma de tocar la red, y sin la bandera
+ * salia la misma operacion para siempre. Aqui era peor que en analizar.mjs,
+ * porque este script ni siquiera avisaba de la antiguedad de los datos.
+ */
+const sinRed = args.includes('--sin-red');
+let datos = existsSync(RUTA_OHLCV) ? JSON.parse(readFileSync(RUTA_OHLCV, 'utf8')) : null;
 
-const datos = JSON.parse(readFileSync(RUTA_OHLCV, 'utf8'));
+if (!sinRed && (args.includes('--refrescar') || !datos || estaObsoleto(datos))) {
+  datos = await recolectar({ silencioso: true });
+}
+
+if (!datos) {
+  console.error('No hay velas en disco y --sin-red impide descargarlas.');
+  process.exit(1);
+}
+
+const antiguedadMin = antiguedadMinutos(datos);
+/** Decorativo: se imprime, nunca entra en la seleccion. */
+const precioEnVivo = sinRed ? null : await traerPrecioEnVivo();
 const analisis = ['1d', '4h', '1h', '15m'].filter((tf) => datos.series[tf])
   .map((tf) => analizarTemporalidad(datos.series[tf]));
 const sintesis = sintetizar(analisis);
@@ -60,6 +81,21 @@ linea('=');
 console.log('  BTCUSDT   ' + usd(analisis[0].precio) + ' USDT'
   + '        ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC');
 linea('=');
+
+/**
+ * POR QUE LA OPERACION NO CAMBIA EN TODO EL DIA. Todo lo de abajo sale de
+ * velas CERRADAS, asi que entrada, stop y objetivo son estables hasta el
+ * proximo cierre diario por construccion. Sin decirlo, volver a lanzarlo y
+ * recibir lo mismo se parece demasiado a un programa roto.
+ */
+if (precioEnVivo !== null) {
+  console.log('  referencia ' + usd(analisis[0].precio) + ' (ultimo cierre)'
+    + '   |   mercado ahora ' + usd(precioEnVivo)
+    + '   |   velas de hace ' + antiguedadMin.toFixed(0) + ' min');
+  console.log('  El escenario no cambia hasta el cierre diario de las '
+    + proximoCierreDiario().slice(11, 16) + ' UTC.');
+  linea();
+}
 
 // ------------------------------------------------------- lectura del dia
 

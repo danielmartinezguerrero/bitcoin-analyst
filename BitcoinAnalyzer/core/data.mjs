@@ -127,3 +127,39 @@ export async function fetchFunding() {
     };
   } catch { return null; }
 }
+
+/**
+ * CACHE EXPIRY.
+ *
+ * `loadMarketData()` had no notion of age, so a snapshot written once was
+ * served forever: the "Analyze today" button issued no request for candles and
+ * returned a byte-identical reading days later. The file is only good until
+ * the fastest timeframe rolls over, which is what this encodes.
+ */
+export const CACHE_TTL_MINUTES = 15;
+
+export function marketDataAgeMinutes(market) {
+  if (!market || !market.generatedAt) return Infinity;
+  return (Date.now() - new Date(market.generatedAt).getTime()) / 60000;
+}
+
+export function isMarketDataStale(market, ttlMinutes = CACHE_TTL_MINUTES) {
+  return marketDataAgeMinutes(market) > ttlMinutes;
+}
+
+/**
+ * Live spot price, for DISPLAY ONLY.
+ *
+ * The analysis deliberately runs on closed candles, so the price it reasons
+ * with is yesterday's daily close. Showing that number alone in the sidebar
+ * made the app look broken — it sat still while the market moved. This is the
+ * real quote, shown next to the reference price, never fed into the analysis.
+ */
+export async function fetchSpotPrice() {
+  try {
+    const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL}`,
+      { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return null;
+    return parseFloat((await r.json()).price);
+  } catch { return null; }
+}
