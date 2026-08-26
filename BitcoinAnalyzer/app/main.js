@@ -43,10 +43,54 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  collectOnStartup();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+/**
+ * DERIVATIVES COLLECTION ON EVERY START.
+ *
+ * Binance keeps roughly 30 days of large-trader ratios, open interest and
+ * taker ratio. They cannot be backtested today, and the only way to ever
+ * measure them is to start accumulating now — a day not collected is a day
+ * lost for good. Running it here means the dataset grows by simply using the
+ * app, with no scheduled task to install and nothing to remember.
+ *
+ * THREE THINGS THIS DELIBERATELY DOES NOT DO:
+ *
+ * It does not block the window. createWindow() has already returned; this
+ * runs afterwards and the UI never waits on the network for a dataset it does
+ * not use to draw anything.
+ *
+ * It does not run inside the renderer. A page reload would fire it again, and
+ * the collector would be at the mercy of the window's lifetime.
+ *
+ * It does not let a failure reach the user. A missing ancillary snapshot is
+ * not worth an error dialog, and it must never be worth a window that fails
+ * to open — so the promise is fully contained here. It is still reported to
+ * the UI as a status line, because silence is how a broken collector goes
+ * unnoticed for months.
+ */
+async function collectOnStartup() {
+  try {
+    const { collectDerivatives, seriesHealth } = await import('../core/collector.mjs');
+    const r = await collectDerivatives({ onProgress: progress });
+
+    const health = seriesHealth();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('collector', { ...r, health });
+    }
+    console.log('[collector] ' + r.status + ' ' + r.day
+      + ' | records=' + health.records + ' days=' + health.days
+      + (health.gaps ? ' gaps=' + health.gaps : '')
+      + (r.error ? ' error=' + r.error : ''));
+  } catch (err) {
+    // Last line of defence: nothing about this dataset may break startup.
+    console.error('[collector] unexpected failure:', err.message);
+  }
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -82,4 +126,14 @@ ipcMain.handle('get-positioning', async () => {
 ipcMain.handle('get-validation', async () => {
   const { VALIDATION } = await import('../core/engine.mjs');
   return VALIDATION;
+});
+
+/** Lets the UI ask about the collected series without triggering a collection. */
+ipcMain.handle('get-collector-health', async () => {
+  try {
+    const { seriesHealth } = await import('../core/collector.mjs');
+    return { ok: true, health: seriesHealth() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });

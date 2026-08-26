@@ -42,9 +42,10 @@ function applyLanguage() {
   for (const b of document.querySelectorAll('.lang-btn')) {
     b.classList.toggle('active', b.dataset.lang === lang);
   }
+  renderCollector();
   if (lastPrice !== null) {
     priceEl.textContent = money(lastPrice.price);
-    priceTime.textContent = `${T('updated')} ${lastPrice.time} UTC`;
+    priceTime.textContent = `${T(lastPrice.isLive ? 'live' : 'updated')} ${lastPrice.time} UTC`;
   } else {
     priceTime.textContent = T('notLoaded');
   }
@@ -95,6 +96,47 @@ function busy(on, textKey = '') {
 
 window.api.onProgress((message) => { statusText.textContent = message; });
 
+// ------------------------------------------------------------- collector
+
+const collectorEl = document.getElementById('collector');
+/** Kept as data so the language switch can re-render it like everything else. */
+let collectorState = null;
+
+/**
+ * The counter matters more than it looks. Binance keeps ~30 days of these
+ * ratios, so the series can only ever be built forward: every day the app is
+ * opened adds one point and every day it is not is gone for good. Showing the
+ * count turns an invisible background job into something with visible
+ * progress — and makes a broken collector obvious instead of silent.
+ */
+function renderCollector() {
+  if (!collectorState) { collectorEl.textContent = ''; return; }
+  const { health, status, error } = collectorState;
+  const bad = status === 'error' || health?.unreadable;
+  collectorEl.classList.toggle('bad', !!bad);
+
+  if (bad) {
+    collectorEl.innerHTML = '<span class="dot"></span>' + T('collectorFailed');
+    collectorEl.title = error || '';
+    return;
+  }
+
+  const parts = [T('collectorDays', { n: health.days })];
+  if (health.gaps) parts.push(T('collectorGaps', { n: health.gaps }));
+  collectorEl.innerHTML = '<span class="dot"></span>' + parts.join(' · ');
+  collectorEl.title = T('collectorWhy');
+}
+
+window.api.onCollector((payload) => { collectorState = payload; renderCollector(); });
+
+/**
+ * Asked on load as well as pushed on collection: opening the app on a day
+ * already collected sends no push, and an empty box would read as broken.
+ */
+window.api.getCollectorHealth().then((r) => {
+  if (r.ok && !collectorState) { collectorState = { status: 'already', health: r.health }; renderCollector(); }
+});
+
 const settings = () => ({
   capital: Number(document.getElementById('capital').value) || 0,
   feeProfile: document.getElementById('profile').value,
@@ -131,6 +173,24 @@ const RENDERERS = {
       <div class="verdict ${cls}">${arrow} ${escape(label)}
         ${x.isTrending ? '' : `<span class="pill info">${T('noClearTrend')}</span>`}
         ${x.qualifier ? `<span class="pill no">${T('momentumDeteriorating')}</span>` : ''}</div>`;
+
+    /**
+     * WHY THE READING DOES NOT MOVE ALL DAY.
+     *
+     * Everything above is computed on CLOSED candles, so the verdict and the
+     * scenario are stable until the next daily close by construction. Left
+     * unsaid, pressing the button again and getting the identical report looks
+     * exactly like a button that does nothing — which is how this was reported
+     * as a bug. It sits under the headline, not in a footnote, because it is
+     * the first question a repeated press raises.
+     */
+    html += `<div class="freshness">${T('freshness', {
+      age: r.dataAge < 1 ? '<1' : Math.round(r.dataAge),
+      ref: money(r.price),
+      refDate: r.referenceCandleDate ? r.referenceCandleDate.slice(0, 10) : '—',
+      live: r.livePrice != null ? money(r.livePrice) : '—',
+      next: r.nextDailyCloseAt ? r.nextDailyCloseAt.slice(11, 16) : '00:00',
+    })}</div>`;
 
     /**
      * The momentum conflict sits directly under the headline, not in the list.
@@ -292,9 +352,21 @@ async function analyze(refresh = false) {
 
   if (!res.ok) { push('error', { message: res.error }); return; }
 
-  lastPrice = { price: res.result.price, time: new Date(res.result.generatedAt).toISOString().slice(11, 16) };
+  /**
+   * The card shows the LIVE quote. It used to show the analysis reference
+   * price — the last closed daily candle — which does not move for 24 hours
+   * and therefore read as a broken ticker. The reference price still appears,
+   * inside the report, where the difference can be explained instead of
+   * silently confusing the two.
+   */
+  const r = res.result;
+  lastPrice = {
+    price: r.livePrice ?? r.price,
+    isLive: r.livePrice != null,
+    time: new Date(r.generatedAt).toISOString().slice(11, 16),
+  };
   priceEl.textContent = money(lastPrice.price);
-  priceTime.textContent = `${T('updated')} ${lastPrice.time} UTC`;
+  priceTime.textContent = `${T(lastPrice.isLive ? 'live' : 'updated')} ${lastPrice.time} UTC`;
   push('analysis', res);
 }
 

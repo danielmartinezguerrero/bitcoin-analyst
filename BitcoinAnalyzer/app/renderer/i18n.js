@@ -35,6 +35,22 @@ const UI = {
     makerEntry: 'Enter with limit order (maker)',
     notLoaded: 'not loaded yet',
     updated: 'updated',
+    live: 'live',
+    collectorDays: 'Derivatives series: {n} days collected',
+    collectorGaps: '{n} missing',
+    collectorFailed: 'Derivatives collection failed today',
+    collectorWhy: 'Binance keeps only ~30 days of large-trader ratios, so this '
+      + 'dataset can only be built forward. Each app start adds one day; days '
+      + 'the app is not opened cannot be recovered.',
+    /**
+     * Explains the two prices and the reason the report repeats. Written as
+     * one sentence per idea because it is read once, in a hurry, right after
+     * pressing the button a second time and getting the same answer.
+     */
+    freshness: 'Candles downloaded {age} min ago. The analysis runs on <strong>closed</strong> '
+      + 'candles, so its reference price is {ref} — the daily close of {refDate} — while BTC '
+      + 'trades at {live} right now. That is why the verdict and the scenario stay identical '
+      + 'however many times you press: they can only change at the next daily close, {next} UTC.',
     disclaimer: 'Educational tool. Not financial advice. It does not connect to any account and never places orders.',
 
     askAnalyze: "What's the read today?",
@@ -138,6 +154,17 @@ const UI = {
     makerEntry: 'Entrar con orden límite (maker)',
     notLoaded: 'sin cargar',
     updated: 'actualizado',
+    live: 'en vivo',
+    collectorDays: 'Serie de derivados: {n} dias recogidos',
+    collectorGaps: '{n} sin recoger',
+    collectorFailed: 'Fallo al recoger derivados hoy',
+    collectorWhy: 'Binance solo guarda ~30 dias de los ratios de grandes '
+      + 'traders, asi que esta serie solo se puede construir hacia adelante. '
+      + 'Cada arranque anade un dia; los dias sin abrir la app no se recuperan.',
+    freshness: 'Velas descargadas hace {age} min. El análisis usa velas <strong>cerradas</strong>, '
+      + 'así que su precio de referencia es {ref} — el cierre diario del {refDate} — mientras BTC '
+      + 'cotiza ahora a {live}. Por eso el veredicto y el escenario no cambian por muchas veces '
+      + 'que pulses: solo pueden cambiar en el próximo cierre diario, {next} UTC.',
     disclaimer: 'Herramienta educativa. No es asesoramiento financiero. No se conecta a ninguna cuenta y nunca envía órdenes.',
 
     askAnalyze: '¿Qué lectura hay hoy?',

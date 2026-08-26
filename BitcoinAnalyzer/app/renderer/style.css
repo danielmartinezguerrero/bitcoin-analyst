@@ -263,3 +263,25 @@ table.data td:last-child { text-align: right; font-variant-numeric: tabular-nums
   font-size: 12px; line-height: 1.5; color: var(--text);
 }
 .verdict .pill { vertical-align: middle; margin-left: 8px; }
+
+/* Derivatives collector status: quiet when healthy, loud only when broken. */
+.collector {
+  font-size: 11px; line-height: 1.45; color: var(--muted, #8b949e);
+  padding: 7px 10px; margin-top: 8px;
+  border-radius: 6px; background: rgba(139,148,158,.08);
+}
+.collector.bad { color: var(--red); background: rgba(248,81,73,.10); }
+.collector .dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); margin-right: 6px; vertical-align: middle;
+}
+.collector.bad .dot { background: var(--red); }
+
+/* Data freshness note. Neutral, not a warning: it explains, it does not alarm. */
+.freshness {
+  background: rgba(139,148,158,.10);
+  border-left: 3px solid var(--muted, #8b949e);
+  border-radius: 0 6px 6px 0;
+  padding: 9px 12px; margin-top: 10px;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+}

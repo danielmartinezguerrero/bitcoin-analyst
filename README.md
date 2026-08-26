@@ -21,6 +21,8 @@ because it is the most valuable thing here:
 | **Out-of-sample** expectancy (2023-2026) | **+0.0359R** — 74% degradation |
 | Out-of-sample 95% CI | **[−0.247 , +0.319]** — includes zero |
 | Configurations tried | 15 → Bonferroni threshold p < 0.0033 |
+| Learned model, out-of-sample AUC | **0.515** — p = 0.12 against a block permutation |
+| Learned model vs the hand-written rules | 0.515 vs **0.517** — the model is not better |
 
 **There is no evidence this system has positive expectancy.** Support and
 resistance levels carry no information: replacing them with randomly drawn
@@ -28,6 +30,32 @@ lines produces the same results. The desktop app reports all of this on its own
 screen rather than burying it.
 
 A clean negative result is worth more than a positive one found by searching.
+
+### "Maybe the rules are just too crude"
+
+That is the reasonable objection to everything above, and `npm run validar:ml`
+answers it. A logistic regression is trained on 19,458 labelled 4h candles —
+triple-barrier labels at ±1 ATR over a 28-candle horizon — using the same nine
+features the rule system already computes, with the same 2017-2022 / 2023-2026
+split and the training rows whose outcome crosses the boundary purged out.
+
+Out-of-sample AUC is **0.515**, where 0.5 is a coin. It does not beat the
+hand-written rules (0.517). Walk-forward across six years, retraining annually,
+gives 0.511. The learned coefficients are all near zero. The signal is not
+hiding behind rules that are too simple: it is not there.
+
+**The most instructive number in this repo is a p-value that was wrong.** The
+naive permutation test — shuffling labels one by one — returns p = 0.01, which
+reads as a real finding. It is an artefact: the labels overlap 28 candles, so
+they come in long runs, and shuffling row by row destroys exactly the structure
+that makes the null hard to beat. Permuting contiguous blocks instead returns
+**p = 0.12**. Same data, same model, opposite conclusion.
+
+The effective sample size tells the same story: 7,958 test rows overlapping 28
+candles are worth roughly 284 independent observations, which puts the AUC
+standard error at 0.059 — so 0.515 sits a quarter of a standard deviation from
+chance. Both tests are printed side by side, the wrong one labelled as wrong,
+because seeing them together teaches more than seeing only the correct one.
 
 ---
 
@@ -45,7 +73,7 @@ and on what evidence.
 
 ```bash
 npm install          # no dependencies — Node 18+ only
-npm test             # 158 property-based tests
+npm test             # 267 property-based tests
 
 npm run datos              # recent candles from Binance
 npm run datos:historico    # 9 years of history (3.4 MB)
@@ -54,6 +82,7 @@ npm run datos:funding      # funding history since 2019
 npm run hoy                # today's read
 npm run backtest           # full backtest with costs
 npm run validar            # Osler test on the levels
+npm run validar:ml         # learned model against the rules and against chance
 npm run derivados          # positioning snapshot
 ```
 
@@ -69,11 +98,21 @@ npm run derivados          # positioning snapshot
 | `lib/gestion.mjs` | Break-even, trailing, partials, time stop |
 | `lib/validacion.mjs` | Osler test against randomly drawn levels |
 | `lib/backtest.mjs` | Walk-forward backtest with fees and funding |
+| `lib/etiquetado.mjs` | Triple-barrier labelling, ATR-normalised feature matrix |
+| `lib/modelo.mjs` | Logistic regression, AUC, log-loss, purged split, block permutation |
+| `lib/recoleccion.mjs` | Unattended collection: idempotent per day, retries, atomic writes |
 
 ### `BitcoinAnalyzer/` — the desktop app
 
 Electron. Buttons on the left, conversation on the right. **English by default**,
 with a Spanish toggle that translates the interface and the analysis text.
+
+**It collects on every start.** Binance keeps only ~30 days of large-trader
+ratios, open interest and taker ratio, so that dataset can only ever be built
+forwards — a day not collected is gone. Opening the app appends one record and
+shows the running count in the sidebar. The honest cost of tying it to startup
+rather than to a scheduled task: a week without opening the app is a
+week-shaped hole, and the sidebar reports those gaps rather than hiding them.
 
 ```bash
 cd BitcoinAnalyzer
@@ -115,6 +154,25 @@ measured later.
   target, it counts as a stop
 - **Testing stopped at two metrics** — trying more statistics until one comes out
   significant is p-hacking
+- **A test that alters a future candle** and asserts no past feature moved — a
+  look-ahead leak throws no exception and shows up nowhere else; it just makes
+  the results better and untrue
+- **Standardisation fitted on the training split only** — using the full
+  dataset's mean leaks the test set into training, invisibly and in your favour
+- **The barrier and the horizon were not searched** — ±1 ATR and 28 candles come
+  from the risk the selection already uses and the backtest's median holding
+  time; picking whichever pair scored best is the p-hacking this repo refuses
+- **Statistical and economic significance are different things** — with a large
+  enough sample the first arrives long before the second, and an AUC of 0.515
+  is eaten whole by trading costs even where it is real
+- **An all-null snapshot is refused, a partial one is kept and flagged** — the
+  API returns nulls rather than errors when rate-limited, and storing those
+  would poison a series that cannot be rebuilt
+- **The collector's timestamp is set by the writer, not trusted from the
+  reader** — every once-per-day guarantee rests on it, so it cannot depend on
+  another module remembering to supply it
+- **Collection never throws** — it returns a status, because its caller is app
+  startup and an ancillary dataset must never be able to stop a window opening
 
 ---
 
